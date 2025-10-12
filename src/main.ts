@@ -12,6 +12,7 @@ async function bootstrap() {
     .setTitle('DDD Clean API')
     .setDescription('API for managing users using DDD and clean architecture')
     .setVersion('1.0')
+    .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
