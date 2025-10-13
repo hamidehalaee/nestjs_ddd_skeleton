@@ -13,8 +13,9 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new user' })
+  @ApiOperation({ summary: 'Create a new user and return tokens' })
   @ApiBody({ type: CreateUserDto })
+  @ApiResponse({ status: 201, description: 'User created with tokens', type: Object })
   @ApiResponse({ status: 400, description: 'Invalid input data' })
   create(@Body() createUserDto: CreateUserDto) {
     return this.userService.create(createUserDto);
@@ -23,6 +24,7 @@ export class UserController {
   @Get()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Retrieve all users' })
+  @ApiResponse({ status: 200, description: 'List of users', type: [CreateUserDto] })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   findAll() {
     return this.userService.findAll();
@@ -32,6 +34,7 @@ export class UserController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Retrieve a user by ID' })
   @ApiParam({ name: 'id', description: 'User ID', type: Number })
+  @ApiResponse({ status: 200, description: 'User found', type: CreateUserDto })
   @ApiResponse({ status: 404, description: 'User not found' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   findOne(@Param('id', ParseIntPipe) id: number) {
@@ -43,6 +46,7 @@ export class UserController {
   @ApiOperation({ summary: 'Update a user by ID' })
   @ApiParam({ name: 'id', description: 'User ID', type: Number })
   @ApiBody({ type: UpdateUserDto })
+  @ApiResponse({ status: 200, description: 'User updated successfully', type: CreateUserDto })
   @ApiResponse({ status: 404, description: 'User not found' })
   @ApiResponse({ status: 400, description: 'Invalid input data' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })

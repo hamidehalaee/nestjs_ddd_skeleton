@@ -7,7 +7,7 @@ import { UserRepository } from 'src/domain/user/userRepository.interface';
 export class PrismaUserRepository implements UserRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(data: { name: string; email: string; password: string }): Promise<User> {
+  async create(data: { name: string; email: string; password: string; refreshToken: string }): Promise<User> {
     return this.prisma.user.create({ data });
   }
 
@@ -23,7 +23,7 @@ export class PrismaUserRepository implements UserRepository {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
-  async update(id: number, data: Partial<{ name: string; email: string; password: string }>): Promise<User> {
+  async update(id: number, data: Partial<{ name: string; email: string; password: string; refreshToken?: string }>): Promise<User> {
     return this.prisma.user.update({ where: { id }, data });
   }
 
