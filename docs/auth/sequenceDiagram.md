@@ -1,3 +1,4 @@
+```mermaid
 sequenceDiagram
     actor Client
     participant UserController
@@ -103,3 +104,4 @@ sequenceDiagram
             AuthController-->>Client: 200 { access_token }
         end
     end
+```
