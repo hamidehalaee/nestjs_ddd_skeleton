@@ -1,5 +1,4 @@
-Authentication Sequence Diagram
-This sequence diagram illustrates the registration, login, and refresh token flows for a user authentication system.
+
 sequenceDiagram
     actor Client
     participant UserController
