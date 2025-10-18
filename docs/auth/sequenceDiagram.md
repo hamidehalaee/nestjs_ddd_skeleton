@@ -1,4 +1,3 @@
-
 sequenceDiagram
     actor Client
     participant UserController
