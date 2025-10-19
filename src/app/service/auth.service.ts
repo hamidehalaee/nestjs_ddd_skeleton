@@ -4,6 +4,7 @@ import * as argon2 from 'argon2';
 import { ConfigService } from '@nestjs/config';
 import { USER_REPOSITORY } from './user.service';
 import { UserRepository } from 'src/domain/user/userRepository.interface';
+import { RedisService } from 'src/infra/persistence/redis.service';
 import { LoginUserDto } from '../dto/loginUser.dto';
 import { RefreshTokenDto } from '../dto/refreshToken.dto';
 
@@ -13,6 +14,7 @@ export class AuthService {
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
   ) {}
 
   async login(loginUserDto: LoginUserDto): Promise<{ access_token: string; refresh_token: string }> {
@@ -33,7 +35,7 @@ export class AuthService {
       expiresIn: '7d',
     });
 
-    await this.userRepository.update(user.id, { refreshToken });
+    await this.redisService.setRefreshToken(user.id, refreshToken);
 
     return {
       access_token: accessToken,
@@ -48,7 +50,12 @@ export class AuthService {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       });
       const user = await this.userRepository.findOne(payload.sub);
-      if (!user || user.refreshToken !== refreshToken) {
+      if (!user) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      const storedRefreshToken = await this.redisService.getRefreshToken(payload.sub);
+      if (!storedRefreshToken || storedRefreshToken !== refreshToken) {
         throw new UnauthorizedException('Invalid refresh token');
       }
 

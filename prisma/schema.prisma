@@ -8,9 +8,8 @@ datasource db {
 }
 
 model User {
-  id           Int     @id @default(autoincrement())
-  name         String  @db.VarChar(45)
-  email        String  @unique @db.VarChar(45)
-  password     String  @db.VarChar(500)
-  refreshToken String? @db.VarChar(500)
+  id       Int    @id @default(autoincrement())
+  name     String @db.VarChar(45)
+  email    String @unique @db.VarChar(45)
+  password String @db.VarChar(500)
 }

@@ -8,6 +8,7 @@ import { PrismaService } from 'src/infra/persistence/prisma.service';
 import { PrismaUserRepository } from 'src/infra/persistence/repos/user.repository';
 import { AuthController } from 'src/presentation/controllers/auth.controller';
 import { UserController } from 'src/presentation/controllers/user.controller';
+import { RedisService } from 'src/infra/persistence/redis.service';
 
 @Module({
   imports: [
@@ -26,7 +27,7 @@ import { UserController } from 'src/presentation/controllers/user.controller';
     AuthService,
     PrismaService,
     JwtStrategy,
-    
+    RedisService,
     {
       provide: USER_REPOSITORY,
       useClass: PrismaUserRepository,

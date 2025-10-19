@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { User } from 'src/domain/user/user.entity';
 import * as argon2 from 'argon2';
 import { UserRepository } from 'src/domain/user/userRepository.interface';
+import { RedisService } from 'src/infra/persistence/redis.service';
 import { CreateUserDto } from '../dto/createUser.dto';
 import { UpdateUserDto } from '../dto/updateUser.dto';
 
@@ -15,37 +16,29 @@ export class UserService {
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<{ user: User; access_token: string; refresh_token: string }> {
     const hashedPassword = await argon2.hash(createUserDto.password);
-    const payload = { sub: 0, email: createUserDto.email }; // Temporary sub, updated after user creation
+    const user = await this.userRepository.create({
+      ...createUserDto,
+      password: hashedPassword,
+    });
+
+    const payload = { sub: user.id, email: user.email };
     const accessToken = this.jwtService.sign(payload, { expiresIn: '60m' });
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       expiresIn: '7d',
     });
 
-    const user = await this.userRepository.create({
-      ...createUserDto,
-      password: hashedPassword,
-      refreshToken,
-    });
-
-    // Update payload with actual user ID
-    const finalPayload = { sub: user.id, email: user.email };
-    const finalAccessToken = this.jwtService.sign(finalPayload, { expiresIn: '60m' });
-    const finalRefreshToken = this.jwtService.sign(finalPayload, {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: '7d',
-    });
-
-    await this.userRepository.update(user.id, { refreshToken: finalRefreshToken });
+    await this.redisService.setRefreshToken(user.id, refreshToken);
 
     return {
       user,
-      access_token: finalAccessToken,
-      refresh_token: finalRefreshToken,
+      access_token: accessToken,
+      refresh_token: refreshToken,
     };
   }
 
@@ -57,7 +50,7 @@ export class UserService {
     return this.userRepository.findOne(id);
   }
 
-  async update(id: number, updateUserDto: Partial<UpdateUserDto & { refreshToken?: string }>): Promise<User> {
+  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
     if (updateUserDto.password) {
       updateUserDto.password = await argon2.hash(updateUserDto.password);
     }
@@ -65,6 +58,7 @@ export class UserService {
   }
 
   async remove(id: number): Promise<void> {
-    return this.userRepository.remove(id);
+    await this.redisService.deleteRefreshToken(id);
+    await this.userRepository.remove(id);
   }
 }
