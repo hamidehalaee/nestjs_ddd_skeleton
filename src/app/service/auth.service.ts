@@ -1,19 +1,17 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { UserRepository } from 'src/domain/user/user-repository.interface';
 import * as argon2 from 'argon2';
-import { ConfigService } from '@nestjs/config';
 import { USER_REPOSITORY } from './user.service';
-import { UserRepository } from 'src/domain/user/userRepository.interface';
+import { TokenService } from 'src/infra/auth/token.service';
 import { RedisService } from 'src/infra/persistence/redis.service';
-import { LoginUserDto } from '../dto/loginUser.dto';
-import { RefreshTokenDto } from '../dto/refreshToken.dto';
+import { LoginUserDto } from '../dto/login-user.dto';
+import { RefreshTokenDto } from '../dto/refresh-token.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
+    private readonly tokenService: TokenService,
     private readonly redisService: RedisService,
   ) {}
 
@@ -28,43 +26,35 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload = { sub: user.id, email: user.email };
-    const accessToken = this.jwtService.sign(payload, { expiresIn: '60m' });
-    const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: '7d',
-    });
+    const accessToken = this.tokenService.generateAccessToken();
+    const refreshToken = this.tokenService.generateRefreshToken();
 
-    await this.redisService.setRefreshToken(user.id, refreshToken);
+    await this.redisService.setAccessToken(user.id, `${user.id}:${accessToken}`);
+    await this.redisService.setRefreshToken(user.id, `${user.id}:${refreshToken}`);
 
     return {
-      access_token: accessToken,
-      refresh_token: refreshToken,
+      access_token: `${user.id}:${accessToken}`,
+      refresh_token: `${user.id}:${refreshToken}`,
     };
   }
 
   async refresh(refreshTokenDto: RefreshTokenDto): Promise<{ access_token: string }> {
     const { refreshToken } = refreshTokenDto;
-    try {
-      const payload = await this.jwtService.verifyAsync(refreshToken, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      });
-      const user = await this.userRepository.findOne(payload.sub);
-      if (!user) {
-        throw new UnauthorizedException('Invalid refresh token');
-      }
+    const userId = Number(refreshToken.split(':')[0]);
+    const storedRefreshToken = await this.redisService.getRefreshToken(userId);
 
-      const storedRefreshToken = await this.redisService.getRefreshToken(payload.sub);
-      if (!storedRefreshToken || storedRefreshToken !== refreshToken) {
-        throw new UnauthorizedException('Invalid refresh token');
-      }
-
-      const newPayload = { sub: user.id, email: user.email };
-      const accessToken = this.jwtService.sign(newPayload, { expiresIn: '60m' });
-
-      return { access_token: accessToken };
-    } catch (error) {
+    if (!storedRefreshToken || storedRefreshToken !== refreshToken) {
       throw new UnauthorizedException('Invalid refresh token');
     }
+
+    const user = await this.userRepository.findOne(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const accessToken = this.tokenService.generateAccessToken();
+    await this.redisService.setAccessToken(user.id, `${user.id}:${accessToken}`);
+
+    return { access_token: `${user.id}:${accessToken}` };
   }
 }
