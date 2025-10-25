@@ -1,20 +1,32 @@
 ```mermaid
 sequenceDiagram
+  box Gray Frontend
   actor Client
-  participant Controller as UserController
-  participant AuthController
-  participant UserService
-  participant AuthService
+  end
+
+  box Olive Token
   participant TokenService
+  end
+
+  box Red Redis
   participant RedisService
-  participant UserRepo as UserRepository
   participant Redis
+  end
+
+  box Green User
+  participant Controller as UserController
+  participant UserService
+  participant UserRepo as UserRepository
+  end
+
+  box Blue MySQL
   participant MySQL
-  participant Guard as TokenAuthGuard
+  end
 
   %% Registration Flow
   Client->>Controller: POST /users {name, email, password}
   Controller->>UserService: create(CreateUserDto)
+  UserService->> UserService: hashedPassword = await argon2.hash(createUserDto.password);
   UserService->>UserRepo: create({name, email, hashedPassword})
   UserRepo->>MySQL: create({name, email, hashedPassword})
   MySQL-->>UserRepo: User

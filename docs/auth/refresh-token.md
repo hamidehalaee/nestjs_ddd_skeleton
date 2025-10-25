@@ -1,37 +1,61 @@
 ```mermaid
+---
+config:
+  theme: 'base'
+  themeVariables:
+    primaryColor: '#BB2528'
+    primaryTextColor: '#fff'
+    primaryBorderColor: '#fff'
+    lineColor: '#F8B229'
+    secondaryColor: '#006100'
+    tertiaryColor: '#fff'
+---
 sequenceDiagram
+  box Gray Frontend
   actor Client
-  participant Controller as UserController
+  end
+
+  box Purple Auth
   participant AuthController
-  participant UserService
   participant AuthService
+  end
+
+  box Olive Token
   participant TokenService
+  end
+
+  box Red Redis
   participant RedisService
-  participant UserRepo as UserRepository
   participant Redis
+  end
+
+  box Green UserRepository
+  participant UserRepo as UserRepository
+  end
+
+  box Blue MySQL
   participant MySQL
-  participant Guard as TokenAuthGuard
+  end
 
 %% Refresh Flow with Validation
-  Client->>AuthController: POST /auth/refresh {refreshToken} (Bearer userId:refreshToken)
-  AuthController->>Guard: canActivate(context)
-  Guard->>RedisService: getRefreshToken(userId)
+  Client->>AuthController: POST /auth/refresh {refreshToken}
+  AuthService->> AuthService: userId = refreshToken.split(':')[0]
+  AuthService->>RedisService: getRefreshToken(userId)
   RedisService->>Redis: GET refresh_token:userId
   Redis-->>RedisService: storedRefreshToken | null
-  RedisService-->>Guard: storedRefreshToken | null
+  RedisService-->>AuthService: storedRefreshToken | null
   alt Invalid refresh token
-    Guard-->>AuthController: UnauthorizedException
+    AuthService-->>AuthController: UnauthorizedException
     AuthController-->>Client: 401 Invalid refresh token
   else Valid refresh token
-    Guard->>UserRepo: findOne(userId)
+    AuthService->>UserRepo: findOne(userId)
     UserRepo->>MySQL: findUnique({where: {id}})
     MySQL-->>UserRepo: User | null
-    UserRepo-->>Guard: User | null
+    UserRepo-->>AuthService: User | null
     alt User not found
-      Guard-->>AuthController: UnauthorizedException
+      AuthService-->>AuthController: UnauthorizedException
       AuthController-->>Client: 401 Invalid refresh token
     else User found
-      Guard-->>AuthController: true (sets request.user)
       AuthController->>AuthService: refresh(RefreshTokenDto, request.user)
       AuthService->>RedisService: getRefreshToken(userId)
       RedisService->>Redis: GET refresh_token:userId

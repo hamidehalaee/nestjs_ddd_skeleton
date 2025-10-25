@@ -1,17 +1,41 @@
 ```mermaid
+---
+config:
+  theme: 'base'
+  themeVariables:
+    primaryColor: '#BB2528'
+    primaryTextColor: '#fff'
+    primaryBorderColor: '#fff'
+    lineColor: '#F8B229'
+    secondaryColor: '#006100'
+    tertiaryColor: '#fff'
+---
 sequenceDiagram
+  box Gray Frontend
   actor Client
-  participant Controller as UserController
-  participant AuthController
-  participant UserService
-  participant AuthService
-  participant TokenService
-  participant RedisService
-  participant UserRepo as UserRepository
-  participant Redis
-  participant MySQL
-  participant Guard as TokenAuthGuard
+  end
 
+  box Purple Auth
+  participant AuthController
+  participant AuthService
+  end
+
+  box Olive Token
+  participant TokenService
+  end
+
+  box Red Redis
+  participant RedisService
+  participant Redis
+  end
+
+  box Green UserRepository
+  participant UserRepo as UserRepository
+  end
+
+  box Blue MySQL
+  participant MySQL
+  end
 
   %% Login Flow
   Client->>AuthController: POST /auth/login {email, password}
@@ -24,6 +48,7 @@ sequenceDiagram
     AuthService-->>AuthController: UnauthorizedException
     AuthController-->>Client: 401 Invalid credentials
   else User found
+    AuthService ->> AuthService: argon2.verify(user.password, loginUserDto.password)
     AuthService->>TokenService: generateAccessToken()
     TokenService-->>AuthService: accessToken
     AuthService->>TokenService: generateRefreshToken()
