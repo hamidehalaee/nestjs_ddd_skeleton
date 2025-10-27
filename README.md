@@ -5,7 +5,7 @@ pnpm install
 
 # .env
 ```
-DATABASE_URL="mysql://root:sys@localhost:3306/ddd_clean"
+DATABASE_URL="postgresql://root:sys@localhost:5432/ddd_clean"
 REDIS_URL="redis://localhost:6379/0"
 ```
 

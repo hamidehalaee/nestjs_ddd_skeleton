@@ -8,24 +8,28 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  name      String    @db.VarChar(45)
-  email     String    @unique @db.VarChar(45)
-  password  String    @db.VarChar(500)
-  sessions  Sessions[]
+  uid      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id       Int       @unique @default(autoincrement()) // optional legacy
+
+  name     String    @db.VarChar(45)
+  email    String    @unique @db.VarChar(45)
+  password String    @db.VarChar(500)
+
+  sessions Sessions[]
 }
 
 model Sessions {
-  id         Int       @id @default(autoincrement())
-  userId     Int?
+  uid        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id         Int       @unique @default(autoincrement()) // optional legacy
+
+  userUid    String?   @db.Uuid
   device     String?   @db.VarChar(45)
   lastActive DateTime  @default(now()) @db.Timestamp(0)
   createdAt  DateTime? @default(now()) @db.Timestamp(0)
 
-  // Relation to User
-  user       User?     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  // CORRECT: @relation must be on a single line
+  user       User?     @relation(fields: [userUid], references: [uid], onDelete: NoAction, onUpdate: NoAction)
 
-  // Indexes (optional but helpful)
-  @@index([userId])
-  @@index([device, lastActive, userId])
+  @@index([userUid])
+  @@index([device, lastActive, userUid])
 }
