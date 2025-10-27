@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { CreateUserDto } from 'src/app/dto/create-user.dto';
 import { UpdateUserDto } from 'src/app/dto/update-user.dto';
 import { UserService } from 'src/app/service/user.service';
 import { User } from 'src/domain/user/user.entity';
 import { TokenAuthGuard } from 'src/infra/auth/auth.guard';
+import { Request } from 'express';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -17,8 +18,9 @@ export class UserController {
   @ApiBody({ type: CreateUserDto })
   @ApiResponse({ status: 201, description: 'User created with tokens', type: Object })
   @ApiResponse({ status: 400, description: 'Invalid input data' })
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.userService.create(createUserDto);
+  create(@Body() createUserDto: CreateUserDto, @Req() request: Request) {
+    const deviceInfo = { userAgent: request.headers['user-agent'] || 'unknown', ip: request.ip };
+    return this.userService.create(createUserDto, deviceInfo);
   }
 
   @Get()

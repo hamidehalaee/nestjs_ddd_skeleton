@@ -6,6 +6,7 @@ import { TokenService } from 'src/infra/auth/token.service';
 import { RedisService } from 'src/infra/persistence/redis.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
+import { v4 as uuidv4 } from 'uuid';
 
 export const USER_REPOSITORY = Symbol('USER_REPOSITORY');
 
@@ -17,7 +18,7 @@ export class UserService {
     private readonly redisService: RedisService,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<{ user: User; access_token: string; refresh_token: string }> {
+  async create(createUserDto: CreateUserDto, deviceInfo: { userAgent: string; ip: string }): Promise<{ user: User; access_token: string; refresh_token: string, session_id: string }> {
     const hashedPassword = await argon2.hash(createUserDto.password);
     const user = await this.userRepository.create({
       ...createUserDto,
@@ -29,12 +30,17 @@ export class UserService {
 
     await this.redisService.setAccessToken(user.id, `${user.id}:${accessToken}`);
     await this.redisService.setRefreshToken(user.id, `${user.id}:${refreshToken}`);
+    
+    const sessionId = uuidv4();
+
+    await this.redisService.setSession(user.id, sessionId, refreshToken, deviceInfo, new Date().toISOString());
     await this.redisService.setUser(user);
 
     return {
       user,
-      access_token: `${user.id}:${accessToken}`,
-      refresh_token: `${user.id}:${refreshToken}`,
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      session_id: sessionId,
     };
   }
 
@@ -73,8 +79,14 @@ export class UserService {
   }
 
   async remove(id: number): Promise<void> {
+    // Delete all sessions for the user
     await this.redisService.deleteTokens(id);
+    const sessions = await this.redisService.getSessions(id);
+    for (const { sessionId } of sessions) {
+      await this.redisService.deleteSession(id, sessionId);
+    }
     await this.redisService.invalidateUserCache(id);
     await this.userRepository.remove(id);
   }
 }
+

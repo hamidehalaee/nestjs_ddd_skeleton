@@ -20,6 +20,62 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     await this.client.disconnect();
   }
+  
+  async setSession(userId: number, sessionId: string, refreshToken: string, deviceInfo: { userAgent: string; ip: string }, lastActive: string): Promise<void> {
+    const sessionData = JSON.stringify({
+      refreshToken,
+      device: deviceInfo,
+      lastActive,
+    });
+    await this.client.hSet(`user_sessions:${userId}`, sessionId, sessionData);
+    await this.client.expire(`user_sessions:${userId}`, 7 * 24 * 60 * 60); // 7 days TTL
+  }
+
+  async getSessions(userId: number): Promise<{ sessionId: string; refreshToken: string; device: { userAgent: string; ip: string }; lastActive: string }[]> {
+    const sessions = await this.client.hGetAll(`user_sessions:${userId}`) as Record<string, string>;
+    return Object.entries(sessions).map(([sessionId, data]) => {
+      const parsed = JSON.parse(data);
+      return {
+        sessionId,
+        refreshToken: parsed.refreshToken,
+        device: parsed.device,
+        lastActive: parsed.lastActive,
+      };
+    });
+  }
+
+  async getSessionToken(userId: number, sessionId: string): Promise<string | null> {
+    const data = await this.client.hGet(`user_sessions:${userId}`, sessionId);
+    return data ? JSON.parse(data).refreshToken : null;
+  }
+
+  async updateSession(userId: number, sessionId: string, refreshToken: string, lastActive: string): Promise<void> {
+    const existingData = await this.client.hGet(`user_sessions:${userId}`, sessionId);
+    if (existingData) {
+      const parsed = JSON.parse(existingData);
+      const updatedData = JSON.stringify({
+        ...parsed,
+        refreshToken,
+        lastActive,
+      });
+      await this.client.hSet(`user_sessions:${userId}`, sessionId, updatedData);
+      await this.client.expire(`user_sessions:${userId}`, 7 * 24 * 60 * 60);
+    }
+  }
+
+  async findSessionByToken(userId: number, refreshToken: string): Promise<string | null> {
+    const sessions = await this.client.hGetAll(`user_sessions:${userId}`) as Record<string, string>;
+    for (const [sessionId, data] of Object.entries(sessions)) {
+      if (JSON.parse(data).refreshToken === refreshToken) {
+        return sessionId;
+      }
+    }
+    return null;
+  }
+
+  async deleteSession(userId: number, sessionId: string): Promise<void> {
+    await this.client.hDel(`user_sessions:${userId}`, sessionId);
+  }
 
   async setAccessToken(userId: number, accessToken: string): Promise<void> {
     await this.client.set(`access_token:${userId}`, accessToken, { EX: 60 * 60 }); // 1 hour
