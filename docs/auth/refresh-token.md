@@ -1,7 +1,7 @@
 ```mermaid
 ---
 config:
-  theme: 'forest'
+  theme: 'dark'
   themeVariables:
     primaryColor: '#BB2528'
     primaryTextColor: '#fff'
