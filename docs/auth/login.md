@@ -1,68 +1,77 @@
 ```mermaid
 ---
 config:
-  theme: 'base'
+  theme: 'neutral'
   themeVariables:
-    primaryColor: '#BB2528'
-    primaryTextColor: '#fff'
-    primaryBorderColor: '#fff'
+    primaryColor: '#4f96e7ff'
+    primaryBorderColor: 'rgba(153, 188, 241, 1)'
     lineColor: '#F8B229'
     secondaryColor: '#006100'
-    tertiaryColor: '#fff'
+    tertiaryColor: '#ffffff60'
 ---
 sequenceDiagram
-  box Gray Frontend
-  actor Client
+  box cadetblue Frontend
+    participant Client
   end
 
-  box Purple Auth
-  participant AuthController
-  participant AuthService
+  box rgba(135, 217, 223, 1) App
+    participant AuthController
+    participant AuthService
+    participant RedisService
+    participant UserRepo as UserRepository
   end
 
-  box Olive Token
-  participant TokenService
+  box rgba(243, 131, 131, 1) Redis
+    participant Redis
   end
 
-  box Red Redis
-  participant RedisService
-  participant Redis
-  end
-
-  box Green UserRepository
-  participant UserRepo as UserRepository
-  end
-
-  box Blue MySQL
-  participant MySQL
+  box coral DB
+    participant DB as Database
   end
 
   %% Login Flow
   Client->>AuthController: POST /auth/login {email, password}
+  activate AuthController
   AuthController->>AuthService: login(LoginUserDto)
+  activate AuthService
   AuthService->>UserRepo: findOneByEmail(email)
-  UserRepo->>MySQL: findUnique({where: {email}})
-  MySQL-->>UserRepo: User | null
+  activate UserRepo
+  UserRepo->>DB: findUnique({where: {email}})
+  activate DB
+  DB-->>UserRepo: User | null
+  deactivate DB
   UserRepo-->>AuthService: User | null
-  alt User not found or invalid password
+  deactivate UserRepo
+  alt User NOT Found
     AuthService-->>AuthController: UnauthorizedException
     AuthController-->>Client: 401 Invalid credentials
-  else User found
+  else User FOUND
     AuthService ->> AuthService: argon2.verify(user.password, loginUserDto.password)
-    AuthService->>TokenService: generateAccessToken()
-    TokenService-->>AuthService: accessToken
-    AuthService->>TokenService: generateRefreshToken()
-    TokenService-->>AuthService: refreshToken
-    AuthService->>RedisService: setAccessToken(user.id, user.id:accessToken)
-    RedisService->>Redis: SET access_token:user.id user.id:accessToken EX 3600
-    Redis-->>RedisService: OK
-    RedisService-->>AuthService: OK
-    AuthService->>RedisService: setRefreshToken(user.id, user.id:refreshToken)
-    RedisService->>Redis: SET refresh_token:user.id user.id:refreshToken EX 604800
-    Redis-->>RedisService: OK
-    RedisService-->>AuthService: OK
-    AuthService-->>AuthController: {access_token, refresh_token}
-    AuthController-->>Client: 200 {access_token, refresh_token}
+    alt INCORRECT Password
+      AuthService-->>AuthController: UnauthorizedException
+      AuthController-->>Client: 401 Invalid credentials
+    else Password is CORRECT
+      AuthService->>AuthService: generateAccessToken()
+      AuthService->>AuthService: generateRefreshToken()
+
+      AuthService->>RedisService: setAccessToken(user.id, user.id:accessToken)
+      activate RedisService
+      RedisService->>Redis: SET access_token:user.id user.id:accessToken EX 3600
+      activate Redis
+      Redis-->>RedisService:
+
+      RedisService-->>AuthService:
+      AuthService->>RedisService: setRefreshToken(user.id, user.id:refreshToken)
+      RedisService->>Redis: SET refresh_token:user.id user.id:refreshToken EX 604800
+      Redis-->>RedisService:
+      deactivate Redis
+      RedisService-->>AuthService:
+      deactivate RedisService
+      AuthService-->>AuthController: {access_token, refresh_token}
+      deactivate AuthService
+      AuthController-->>Client: 200 {access_token, refresh_token}
+      deactivate AuthController
+    end
   end
 
 ```
