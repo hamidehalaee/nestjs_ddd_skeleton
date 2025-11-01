@@ -7,6 +7,8 @@ import { RedisService } from 'src/infra/persistence/redis.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { v4 as uuidv4 } from 'uuid';
+import { Log } from 'src/common/decorators/log.decorator';
+import { LoggerService } from 'src/infra/log/log.service';
 
 export const USER_REPOSITORY = Symbol('USER_REPOSITORY');
 
@@ -16,8 +18,10 @@ export class UserService {
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
     private readonly tokenService: TokenService,
     private readonly redisService: RedisService,
+    public readonly logger: LoggerService,
   ) {}
 
+  @Log('Creating user')
   async create(createUserDto: CreateUserDto, deviceInfo: { userAgent: string; ip: string }): Promise<{ user: User; access_token: string; refresh_token: string, session_id: string }> {
     const hashedPassword = await argon2.hash(createUserDto.password);
     const user = await this.userRepository.create({

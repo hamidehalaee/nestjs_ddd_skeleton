@@ -1,52 +1,47 @@
 ```mermaid
 ---
 config:
-  theme: 'base'
+  theme: 'neutral'
   themeVariables:
-    primaryColor: '#BB2528'
-    primaryTextColor: '#fff'
-    primaryBorderColor: '#fff'
+    primaryColor: '#4f96e7ff'
+    primaryBorderColor: 'rgba(153, 188, 241, 1)'
     lineColor: '#F8B229'
     secondaryColor: '#006100'
-    tertiaryColor: '#fff'
+    tertiaryColor: '#ffffff60'
 ---
 sequenceDiagram
-    box Gray Frontend
-    actor Client
-    end
+box cadetblue Frontend
+    participant Client
+  end
 
-    box Violet TokenAuthGuard
+  box rgba(135, 217, 223, 1) App
     participant TokenAuthGuard
-    end
-
-    box Purple Auth
     participant AuthController
+    participant UserController
+    participant UserService
     participant AuthService
-    end
-
-    box Olive Token
-    participant TokenService
-    end
-
-    box Red Redis
     participant RedisService
-    participant Redis
-    end
+    participant UserRepo as UserRepository
+  end
 
-    box Blue MySQL
-    participant MySQL
-    end
+  box rgba(243, 131, 131, 1) Redis
+    participant Redis
+  end
+
+  box coral DB
+    participant DB as Database
+  end
 
     %% === Login from Device 1 ===
     Client->>AuthController: POST /auth/login {email, password}
     AuthController->>AuthService: login(dto, deviceInfo)
-    AuthService->>MySQL: findOneByEmail(email)
-    MySQL-->>AuthService: User
+    AuthService->>DB: findOneByEmail(email)
+    DB-->>AuthService: User
     AuthService ->> AuthService: argon2.verify(user.password, loginUserDto.password)
-    AuthService->>TokenService: generateAccessToken()
-    TokenService-->>AuthService: accessToken
-    AuthService->>TokenService: generateRefreshToken()
-    TokenService-->>AuthService: refreshToken
+    AuthService->>AuthService: generateAccessToken()
+    AuthService-->>AuthService: accessToken
+    AuthService->>AuthService: generateRefreshToken()
+    AuthService-->>AuthService: refreshToken
     AuthService->>RedisService: setAccessToken(user.id, user.id:accessToken)
     RedisService->>Redis: SET access_token:user.id user.id:accessToken EX 3600
     Redis-->>RedisService: OK
@@ -64,8 +59,8 @@ sequenceDiagram
     %% === Login from Device 2 ===
     Client->>AuthController: POST /auth/login (same user, different device)
     AuthController->>AuthService: login(dto, deviceInfo2)
-    AuthService->>TokenService: generateRefreshToken()
-    TokenService-->>AuthService: refreshToken
+    AuthService->>AuthService: generateRefreshToken()
+    AuthService-->>AuthService: refreshToken
     AuthService->>RedisService: setAccessToken(user.id, user.id:accessToken)
     RedisService->>Redis: SET access_token:user.id user.id:accessToken EX 3600
     Redis-->>RedisService: OK
@@ -81,13 +76,13 @@ sequenceDiagram
     %% === Refresh Session (Device 1) ===
     Client->>AuthController: POST /auth/refresh {refreshToken1}
     AuthController->>AuthService: refresh(refreshTokenDto)
-    AuthService->>TokenService: verify(refreshToken1, refresh_secret)
-    TokenService-->>AuthService: payload {sub: userId}
+    AuthService->>AuthService: verify(refreshToken1, refresh_secret)
+    AuthService-->>AuthService: payload {sub: userId}
     AuthService->>RedisService: findSessionByToken(userId, refreshToken1)
     RedisService-->>Redis: HGETALL → scan for matching refreshToken
     RedisService-->>AuthService: sessionId1
-    AuthService->>TokenService: generateRefreshToken()
-    TokenService-->>AuthService: refreshToken
+    AuthService->>AuthService: generateRefreshToken()
+    AuthService-->>AuthService: refreshToken
     AuthService->>RedisService: setAccessToken(user.id, user.id:accessToken)
     RedisService->>Redis: SET access_token:user.id user.id:accessToken EX 3600
     Redis-->>RedisService: OK

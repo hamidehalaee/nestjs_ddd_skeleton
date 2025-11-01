@@ -30,46 +30,46 @@ sequenceDiagram
   end
 
   %% Login Flow
-  Client->>AuthController: POST /auth/login {email, password}
+  Client->>AuthController: 1. FrontEnd Send Login Request With Defiend Dto
   activate AuthController
-  AuthController->>AuthService: login(LoginUserDto)
+  AuthController->>AuthService: 2. login(LoginUserDto)
   activate AuthService
-  AuthService->>UserRepo: findOneByEmail(email)
+  AuthService->>UserRepo: 3. Find User By Identifier Like Email or UserName
   activate UserRepo
-  UserRepo->>DB: findUnique({where: {email}})
+  UserRepo->>DB: 4. Find User
   activate DB
-  DB-->>UserRepo: User | null
+  DB-->>UserRepo: 5. Return User
   deactivate DB
-  UserRepo-->>AuthService: User | null
+  UserRepo-->>AuthService: 6. Return User
   deactivate UserRepo
   alt User NOT Found
-    AuthService-->>AuthController: UnauthorizedException
-    AuthController-->>Client: 401 Invalid credentials
+    AuthService-->>AuthController: 7. Unauthorized Exception
+    AuthController-->>Client: 8. 401 Invalid credentials
   else User FOUND
-    AuthService ->> AuthService: argon2.verify(user.password, loginUserDto.password)
+    AuthService ->> AuthService: 9. Verify Password
     alt INCORRECT Password
-      AuthService-->>AuthController: UnauthorizedException
-      AuthController-->>Client: 401 Invalid credentials
+      AuthService-->>AuthController: 10. Unauthorized Exception
+      AuthController-->>Client: 11. 401 Invalid credentials
     else Password is CORRECT
-      AuthService->>AuthService: generateAccessToken()
-      AuthService->>AuthService: generateRefreshToken()
+      AuthService->>AuthService: 12. generate Access Token
+      AuthService->>AuthService: 13. generate Refresh Token
 
-      AuthService->>RedisService: setAccessToken(user.id, user.id:accessToken)
+      AuthService->>RedisService: 14. Set Access Token
       activate RedisService
-      RedisService->>Redis: SET access_token:user.id user.id:accessToken EX 3600
+      RedisService->>Redis: 15. Set Access Token
       activate Redis
       Redis-->>RedisService:
 
       RedisService-->>AuthService:
-      AuthService->>RedisService: setRefreshToken(user.id, user.id:refreshToken)
-      RedisService->>Redis: SET refresh_token:user.id user.id:refreshToken EX 604800
+      AuthService->>RedisService: 16. Set Refresh Token
+      RedisService->>Redis: 17. Set Refresh Token
       Redis-->>RedisService:
       deactivate Redis
       RedisService-->>AuthService:
       deactivate RedisService
-      AuthService-->>AuthController: {access_token, refresh_token}
+      AuthService-->>AuthController: 18. Return Access Token And Refresh Token
       deactivate AuthService
-      AuthController-->>Client: 200 {access_token, refresh_token}
+      AuthController-->>Client: 19. Return Access Token And Refresh Token
       deactivate AuthController
     end
   end
