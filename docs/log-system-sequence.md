@@ -10,65 +10,74 @@ config:
     tertiaryColor: '#ffffff60'
 ---
 sequenceDiagram
-    participant Client
-    participant API Gateway
-    participant User API
-    participant Business Logic
-    participant Error Handler
-    participant Log Collector
-    participant Log Processor
-    participant File Storage
-    participant Log Central
-    participant Monitoring
+    %% === GROUP 1: CLIENT (Light Blue) ===
+    box LightSkyBlue Client
+        participant Client
+    end
+
+    %% === GROUP 2: APP (Light Green) ===
+    box LightGreen Application
+        participant API Gateway
+        participant User API
+        participant Business Logic
+        participant Error Handler
+        participant Log Collector
+    end
+
+    %% === GROUP 3: LOG SYSTEM (Light Yellow) ===
+    box LightGoldenRodYellow Internal Log System
+        participant Log Processor
+        participant File Storage
+        participant Monitoring
+    end
+
+    %% === GROUP 4: EXTERNAL (Light Pink) ===
+    box LightPink External Systems
+        participant Log Central
+    end
 
     Note over Log Collector,Log Processor: Log Entry = { level, message, context, metadata, timestamp, requestId }
 
-    %% === STEP 1: Client sends request ===
+    %% === CLIENT → APP ===
     Client->>API Gateway: 1. POST /users {email: "john@example.com"}
     API Gateway->>User API: 2. Forward request
 
-    %% === STEP 2: Log request start ===
+    %% === APP: Request & Business Flow ===
     User API->>Log Collector: 3. Log "Request started"
-    Note right of Log Collector: { level: "info",<br/>message: "Request started",<br/>context: "HTTP",<br/>requestId: "req-123",<br/>method: "POST", url: "/users" }
+    Note right of Log Collector: { level: "info", message: "Request started", context: "HTTP", requestId: "req-123" }
 
-    %% === STEP 3: Execute business logic ===
     User API->>Business Logic: 4. createUser(dto)
-
-    %% === STEP 4: Developer logs business event ===
     Business Logic->>Log Collector: 5. Log "Creating user in DB"
-    Note right of Log Collector: { level: "info",<br/>message: "Creating user",<br/>context: "UserService",<br/>userId: 42 }
+    Note right of Log Collector: { level: "info", message: "Creating user", context: "UserService", userId: 42 }
 
-    %% === STEP 5: Success path ===
     alt Success
         Business Logic-->>User API: 6. Return { id: 42 }
         User API->>Log Collector: 7. Log "Request completed"
-        Note right of Log Collector: { level: "info",<br/>message: "Success",<br/>status: 201,<br/>duration: 145ms,<br/>requestId: "req-123" }
+        Note right of Log Collector: { level: "info", message: "Success", status: 201, duration: 145ms }
         User API-->>API Gateway: 8. 201 Created
     else Failure
-        %% === STEP 6: Error occurs ===
         Business Logic->>Error Handler: 6. Throw ValidationError
-        %% === STEP 7: Auto-log error ===
         Error Handler->>Log Collector: 7. Log "Validation failed"
-        Note right of Log Collector: { level: "error",<br/>message: "Invalid email",<br/>context: "Validator",<br/>errorCode: "VAL_001",<br/>stack: "at validate...",<br/>requestId: "req-123" }
+        Note right of Log Collector: { level: "error", message: "Invalid email", context: "Validator", stack: "..." }
         Error Handler-->>User API: 8. 400 Bad Request
         User API-->>API Gateway: 9. 400 Error
     end
 
-    %% === STEP 9 / 10: Return response to client ===
-    API Gateway-->>Client: 10. Final response (201 or 400)
+    %% === APP → CLIENT ===
+    API Gateway-->>Client: 10. Final response
 
-    %% === STEP 11: Background processing (parallel) ===
-    par Background Log Pipeline (Non-blocking)
+    %% === LOG SYSTEM: Internal Processing ===
+    par Internal Processing
         Log Processor->>Log Collector: 11. Pull logs every 100ms
-        Log Processor->>File Storage: 12. Append to daily rotated file
-        Note right of File Storage: app.2025-11-02.log<br/>Auto-delete after 7 days
-
-        Log Processor->>Log Central: 13. POST batch to central system
-        Note right of Log Central: Searchable logs<br/>Alerts on error rate
-
+        Log Processor->>File Storage: 12. Append to rotated file
+        Note right of File Storage: app.2025-11-02.log<br/>7-day retention
         Log Processor->>Monitoring: 14. Increment metrics
-        Note right of Monitoring: log_request_total: 120<br/>log_error_total: 5
+        Note right of Monitoring: log_error_total: 5
     end
+
+    %% === LOG SYSTEM → EXTERNAL ===
+    Log Processor->>Log Central: 13. POST batch
+    Note right of Log Central: Centralized logs<br/>Search + alerts
 ```
 
 
