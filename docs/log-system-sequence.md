@@ -9,75 +9,69 @@ config:
     secondaryColor: '#006100'
     tertiaryColor: '#ffffff60'
 ---
+
 sequenceDiagram
-    %% === GROUP 1: CLIENT (Light Blue) ===
-    box LightSkyBlue Client
-        participant Client
+    %% === Groups ===
+    box LightSkyBlue Frontend
+        participant Frontend
     end
 
-    %% === GROUP 2: APP (Light Green) ===
     box LightGreen Application
-        participant API Gateway
-        participant User API
-        participant Business Logic
-        participant Error Handler
-        participant Log Collector
+        participant Controller
+        participant Service
     end
 
-    %% === GROUP 3: LOG SYSTEM (Light Yellow) ===
-    box LightGoldenRodYellow Internal Log System
-        participant Log Processor
-        participant File Storage
-        participant Monitoring
+    box rgba(243,131,131,1) Queue
+        participant Queue
     end
 
-    %% === GROUP 4: EXTERNAL (Light Pink) ===
-    box LightPink External Systems
-        participant Log Central
+    box LightGoldenRodYellow Log System
+        participant Log System
+        %%participant Store logs in Distk
+        %%participant Show All Logs
     end
 
-    Note over Log Collector,Log Processor: Log Entry = { level, message, context, metadata, timestamp, requestId }
-
-    %% === CLIENT → APP ===
-    Client->>API Gateway: 1. POST /users {email: "john@example.com"}
-    API Gateway->>User API: 2. Forward request
-
-    %% === APP: Request & Business Flow ===
-    User API->>Log Collector: 3. Log "Request started"
-    Note right of Log Collector: { level: "info", message: "Request started", context: "HTTP", requestId: "req-123" }
-
-    User API->>Business Logic: 4. createUser(dto)
-    Business Logic->>Log Collector: 5. Log "Creating user in DB"
-    Note right of Log Collector: { level: "info", message: "Creating user", context: "UserService", userId: 42 }
-
-    alt Success
-        Business Logic-->>User API: 6. Return { id: 42 }
-        User API->>Log Collector: 7. Log "Request completed"
-        Note right of Log Collector: { level: "info", message: "Success", status: 201, duration: 145ms }
-        User API-->>API Gateway: 8. 201 Created
-    else Failure
-        Business Logic->>Error Handler: 6. Throw ValidationError
-        Error Handler->>Log Collector: 7. Log "Validation failed"
-        Note right of Log Collector: { level: "error", message: "Invalid email", context: "Validator", stack: "..." }
-        Error Handler-->>User API: 8. 400 Bad Request
-        User API-->>API Gateway: 9. 400 Error
+    box LightPink External
+        participant Elastic
     end
 
-    %% === APP → CLIENT ===
-    API Gateway-->>Client: 10. Final response
+    Note over Queue,Log System: Log Entry = { level, message, context, metadata, timestamp, requestId }
 
-    %% === LOG SYSTEM: Internal Processing ===
-    par Internal Processing
-        Log Processor->>Log Collector: 11. Pull logs every 100ms
-        Log Processor->>File Storage: 12. Append to rotated file
-        Note right of File Storage: app.2025-11-02.log<br/>7-day retention
-        Log Processor->>Monitoring: 14. Increment metrics
-        Note right of Monitoring: log_error_total: 5
+    %% === Main Flow ===
+    Frontend->>Controller: 1. POST /users {email: "john@example.com"}
+    Controller->>Service: 2. createUser(dto)
+
+    %% === PARALLEL: Send logs to queue ===
+    par Transfer Logs
+        Service->>Queue: 3a. Log "Request started"<br>{level:info, msg:"Request started", ctx:HTTP, reqId:req-123}
+    and
+        Service->>Queue: 3b. Log "Creating user"<br>{level:info, msg:"Creating user", ctx:UserService, userId:42}
+    and
+        Service->>Queue: 3c. Log "Request completed"<br>{level:info, msg:"Success", status:201, dur:145ms}
+    and
+        Queue->>Log System: 6a. Dequeue log (req-123)
+        %%Log Processor->>Store logs in Distk: 7a. Append to app.2025-11-03.log
+        %%Log Processor->>Show All Logs: 8a. Inc log_info_total
+        Log System->>Elastic: 9a. Index log
+    and
+        Queue->>Log System: 6b. Dequeue log (userId:42)
+        %%Log Processor->>Store logs in Distk: 7b. Append
+        %%Log Processor->>Show All Logs: 8b. Inc log_info_total
+        Log System->>Elastic: 9b. Index log
+    and
+        Queue->>Log System: 6c. Dequeue log (success)
+        %%Log Processor->>Store logs in Distk: 7c. Append
+        %%Log Processor->>Show All Logs: 8c. Inc log_success_total
+        Log System->>Elastic: 9c. Index log
     end
 
-    %% === LOG SYSTEM → EXTERNAL ===
-    Log Processor->>Log Central: 13. POST batch
-    Note right of Log Central: Centralized logs<br/>Search + alerts
+    Service-->>Controller: 4. User created
+    Controller-->>Frontend: 5. 201 Created
+
+    %% === PARALLEL: Dequeue & Process Logs ===
+
+
+    Note right of Elastic: Centralized logs<br>Search + alerts ready
 ```
 
 
