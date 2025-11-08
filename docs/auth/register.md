@@ -30,10 +30,25 @@ box cadetblue Frontend
     participant DB as Database
   end
 
+  box rgba(243,131,131,1) Log Queue
+    participant Queue
+  end
+
+  box LightGoldenRodYellow Logger Service
+    participant Logger
+  end
+
+  box LightPink Log Store
+    participant Elastic
+  end
+
+par Processing Incoming Request
   %% Registration Flow
-  Client->>UserController: 1. FrontEnd Send Register Request With Defiend Dto
+  Client->>UserController: 1.1. Forntend sends a request, Controller receives the request
   activate UserController
-  UserController->>UserService: 2. create(CreateUserDto)
+  UserController ->> Queue: 1.2. Controller puts the log of incoming request into the log queue
+  UserController->>UserService: 1.2. create(CreateUserDto)
+  UserService ->> Queue: 1.4. Service puts the result of the operation into the log queue
   activate UserService
   UserService->> UserService: 3. Hash Password
   UserService->>UserRepo: 4. create User With CreateUserDto 
@@ -65,7 +80,14 @@ box cadetblue Frontend
   RedisService-->>UserService: 21. 200
   deactivate RedisService
   UserService-->>UserController: 22. Return {user, access_token, refresh_token}
+  UserService ->> Queue: 1.10. Service puts the Error of the Unauthorized Exception into the log queue
   deactivate UserService
   UserController-->>Client: 23. 201 {user, access_token, refresh_token}
+  UserController ->> Queue: 1.12. Controller puts the final 401 Invalid credentials generated Response into the log queue
   deactivate UserController
+  and Processing Log Entries
+        Logger->>Queue: 2.1. Logger service gets a Log entry from log queue
+        Logger ->> Elastic: 2.2. Logger service sends log data into Log Store (Elastic)
+        Elastic -->> Logger:
+end
 ```
