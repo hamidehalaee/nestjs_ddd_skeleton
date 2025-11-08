@@ -16,62 +16,47 @@ sequenceDiagram
         participant Frontend
     end
 
-    box LightGreen Application
+    box LightGreen App Service
         participant Controller
         participant Service
+        participant Repository
     end
 
-    box rgba(243,131,131,1) Queue
+    box rgba(243,131,131,1) Log Queue
         participant Queue
     end
 
-    box LightGoldenRodYellow Log System
-        participant Log System
-        %%participant Store logs in Distk
-        %%participant Show All Logs
+    box LightGoldenRodYellow Logger Service
+        participant Logger
     end
 
-    box LightPink External
+    box LightPink Log Store
         participant Elastic
     end
 
-    Note over Queue,Log System: Log Entry = { level, message, context, metadata, timestamp, requestId }
+    Note over Queue: Log Entry = { level, message, context, metadata, timestamp, requestId }
 
-    %% === Main Flow ===
-    Frontend->>Controller: 1. POST /users {email: "john@example.com"}
-    Controller->>Service: 2. createUser(dto)
+    par Processing Incoming Request
+        Frontend->>Controller: 1.1. Forntend sends a request, Controller receives the request
+        Controller ->> Queue: 1.2. Controller puts the log of incoming request into the log queue
 
-    %% === PARALLEL: Send logs to queue ===
-    par Transfer Logs
-        Service->>Queue: 3a. Log "Request started"<br>{level:info, msg:"Request started", ctx:HTTP, reqId:req-123}
-    and
-        Service->>Queue: 3b. Log "Creating user"<br>{level:info, msg:"Creating user", ctx:UserService, userId:42}
-    and
-        Service->>Queue: 3c. Log "Request completed"<br>{level:info, msg:"Success", status:201, dur:145ms}
-    and
-        Queue->>Log System: 6a. Dequeue log (req-123)
-        %%Log Processor->>Store logs in Distk: 7a. Append to app.2025-11-03.log
-        %%Log Processor->>Show All Logs: 8a. Inc log_info_total
-        Log System->>Elastic: 9a. Index log
-    and
-        Queue->>Log System: 6b. Dequeue log (userId:42)
-        %%Log Processor->>Store logs in Distk: 7b. Append
-        %%Log Processor->>Show All Logs: 8b. Inc log_info_total
-        Log System->>Elastic: 9b. Index log
-    and
-        Queue->>Log System: 6c. Dequeue log (success)
-        %%Log Processor->>Store logs in Distk: 7c. Append
-        %%Log Processor->>Show All Logs: 8c. Inc log_success_total
-        Log System->>Elastic: 9c. Index log
+        Controller->>Service: 1.3. Controller calls the given method of the Service
+        Service ->> Repository: 1.4. Repository SELECTS/UPDATES data from/on database
+        Repository -->> Service:
+
+        Service ->> Queue: 1.5. Service puts the result of the operation into the log queue
+
+        Service -->> Controller: 1.6. Service returns final response to the Controller
+
+        Controller ->> Queue: 1.7. Controller puts the final generated Response into the log queue
+
+        Controller-->>Frontend: 1.8. Controller sends back the final response to the Frontend
+
+    and Processing Log Entries
+        Logger->>Queue: 2.1. Logger service gets a Log entry from log queue
+        Logger ->> Elastic: 2.2. Logger service sends log data into Log Store (Elastic)
+        Elastic -->> Logger:
     end
-
-    Service-->>Controller: 4. User created
-    Controller-->>Frontend: 5. 201 Created
-
-    %% === PARALLEL: Dequeue & Process Logs ===
-
-
-    Note right of Elastic: Centralized logs<br>Search + alerts ready
 ```
 
 
