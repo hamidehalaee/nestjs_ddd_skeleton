@@ -43,7 +43,7 @@ sequenceDiagram
 
 par Processing Incoming Request
   %% Login Flow
-  Client->>AuthController: 1.1. FrontEnd Send Login Request With Defiend Dto
+  Client->>AuthController: 1.1. Forntend sends a request, Controller receives the request
   activate AuthController
   AuthController ->> Queue: 1.2. Controller puts the log of incoming request into the log queue
   AuthController->>AuthService: 1.3. login(LoginUserDto)
@@ -87,7 +87,7 @@ par Processing Incoming Request
       RedisService-->>AuthService:
       deactivate RedisService
       AuthService-->>AuthController: 1.24. Return Access Token And Refresh Token
-      AuthController ->> Queue: 1.25. Controller puts the final generated Response into the log queue
+      AuthService ->> Queue: 1.25. service puts the final generated Response into the log queue
       deactivate AuthService
       AuthController-->>Client: 1.26. Return Access Token And Refresh Token
       AuthController ->> Queue: 1.27. Controller puts the final generated Response into the log queue
