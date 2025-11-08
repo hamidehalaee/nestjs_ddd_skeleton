@@ -21,7 +21,7 @@ sequenceDiagram
     participant UserRepo as UserRepository
   end
 
-  box rgba(243, 131, 131, 1) Redis
+  box rgba(153, 243, 131, 1) Redis
     participant Redis
   end
 
@@ -29,49 +29,74 @@ sequenceDiagram
     participant DB as Database
   end
 
+  box rgba(243,131,131,1) Log Queue
+    participant Queue
+  end
+
+  box LightGoldenRodYellow Logger Service
+    participant Logger
+  end
+
+  box LightPink Log Store
+    participant Elastic
+  end
+
+par Processing Incoming Request
   %% Login Flow
-  Client->>AuthController: 1. FrontEnd Send Login Request With Defiend Dto
+  Client->>AuthController: 1.1. FrontEnd Send Login Request With Defiend Dto
   activate AuthController
-  AuthController->>AuthService: 2. login(LoginUserDto)
+  AuthController ->> Queue: 1.2. Controller puts the log of incoming request into the log queue
+  AuthController->>AuthService: 1.3. login(LoginUserDto)
+  AuthService ->> Queue: 1.4. Service puts the result of the operation into the log queue
   activate AuthService
-  AuthService->>UserRepo: 3. Find User By Identifier Like Email or UserName
+  AuthService->>UserRepo: 1.5. Find User By Identifier Like Email or UserName
   activate UserRepo
-  UserRepo->>DB: 4. Find User
+  UserRepo->>DB: 1.6. Find User
   activate DB
-  DB-->>UserRepo: 5. Return User
+  DB-->>UserRepo: 1.7. Return User
   deactivate DB
-  UserRepo-->>AuthService: 6. Return User
+  UserRepo-->>AuthService: 1.8. Return User
   deactivate UserRepo
   alt User NOT Found
-    AuthService-->>AuthController: 7. Unauthorized Exception
-    AuthController-->>Client: 8. 401 Invalid credentials
+    AuthService-->>AuthController: 1.9. Unauthorized Exception
+    AuthService ->> Queue: 1.10. Service puts the Error of the Unauthorized Exception into the log queue
+    AuthController-->>Client: 1.11. 401 Invalid credentials
+    AuthController ->> Queue: 1.12. Controller puts the final 401 Invalid credentials generated Response into the log queue
   else User FOUND
-    AuthService ->> AuthService: 9. Verify Password
+    AuthService ->> AuthService: 1.13. Verify Password
     alt INCORRECT Password
-      AuthService-->>AuthController: 10. Unauthorized Exception
-      AuthController-->>Client: 11. 401 Invalid credentials
+      AuthService-->>AuthController: 1.14. Unauthorized Exception
+      AuthService ->> Queue: 1.15. Service puts the Error of the Unauthorized Exception into the log queue
+      AuthController-->>Client: 1.16. 401 Invalid credentials
+      AuthController ->> Queue: 1.17. Controller puts the final 401 Invalid credentials generated Response into the log queue
     else Password is CORRECT
-      AuthService->>AuthService: 12. generate Access Token
-      AuthService->>AuthService: 13. generate Refresh Token
+      AuthService->>AuthService: 1.18. generate Access Token
+      AuthService->>AuthService: 1.19. generate Refresh Token
 
-      AuthService->>RedisService: 14. Set Access Token
+      AuthService->>RedisService: 1.20. Set Access Token
       activate RedisService
-      RedisService->>Redis: 15. Set Access Token
+      RedisService->>Redis: 1.21. Set Access Token
       activate Redis
       Redis-->>RedisService:
 
       RedisService-->>AuthService:
-      AuthService->>RedisService: 16. Set Refresh Token
-      RedisService->>Redis: 17. Set Refresh Token
+      AuthService->>RedisService: 1.22. Set Refresh Token
+      RedisService->>Redis: 1.23. Set Refresh Token
       Redis-->>RedisService:
       deactivate Redis
       RedisService-->>AuthService:
       deactivate RedisService
-      AuthService-->>AuthController: 18. Return Access Token And Refresh Token
+      AuthService-->>AuthController: 1.24. Return Access Token And Refresh Token
+      AuthController ->> Queue: 1.25. Controller puts the final generated Response into the log queue
       deactivate AuthService
-      AuthController-->>Client: 19. Return Access Token And Refresh Token
+      AuthController-->>Client: 1.26. Return Access Token And Refresh Token
+      AuthController ->> Queue: 1.27. Controller puts the final generated Response into the log queue
       deactivate AuthController
     end
   end
-
+  and Processing Log Entries
+        Logger->>Queue: 2.1. Logger service gets a Log entry from log queue
+        Logger ->> Elastic: 2.2. Logger service sends log data into Log Store (Elastic)
+        Elastic -->> Logger:
+end
 ```
