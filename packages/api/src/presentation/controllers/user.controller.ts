@@ -1,0 +1,78 @@
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { CreateUserDto } from 'src/app/dto/create-user.dto';
+import { UpdateUserDto } from 'src/app/dto/update-user.dto';
+import { UserService } from 'src/app/service/user.service';
+import { User } from 'src/domain/user/user.entity';
+import { TokenAuthGuard } from 'src/infra/auth/auth.guard';
+import { Request } from 'express';
+import { LoggerService } from "@nestjs/common/services/logger.service";
+
+@ApiTags('users')
+@ApiBearerAuth()
+@Controller('users')
+export class UserController {
+  constructor(
+    private readonly userService: UserService,
+    private readonly logger: LoggerService
+  ) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Create a new user and return tokens' })
+  @ApiBody({ type: CreateUserDto })
+  @ApiResponse({ status: 201, description: 'User created with tokens', type: Object })
+  @ApiResponse({ status: 400, description: 'Invalid input data' })
+  async create(@Body() createUserDto: CreateUserDto, @Req() request: Request) {
+    try {
+      // this.logger.log(`[UserController] Calling Start`);
+      const deviceInfo = { userAgent: request.headers['user-agent'] || 'unknown', ip: request.ip };
+      const result = await this.userService.create(createUserDto, deviceInfo);
+      // this.logger.log(`[UserController] Calling End`);
+      return result;
+    } catch (error) {
+      // this.logger.error(`[UserController] Calling End - Error: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Get()
+  @UseGuards(TokenAuthGuard)
+  @ApiOperation({ summary: 'Retrieve all users' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  findAll() {
+    return this.userService.findAll();
+  }
+
+  @Get(':id')
+  @UseGuards(TokenAuthGuard)
+  @ApiOperation({ summary: 'Retrieve a user by ID' })
+  @ApiParam({ name: 'id', description: 'User ID', type: Number })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.findOne(id);
+  }
+
+  @Patch(':id')
+  @UseGuards(TokenAuthGuard)
+  @ApiOperation({ summary: 'Update a user by ID' })
+  @ApiParam({ name: 'id', description: 'User ID', type: Number })
+  @ApiBody({ type: UpdateUserDto })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({ status: 400, description: 'Invalid input data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateUserDto: UpdateUserDto) {
+    return this.userService.update(id, updateUserDto);
+  }
+
+  @Delete(':id')
+  @UseGuards(TokenAuthGuard)
+  @ApiOperation({ summary: 'Delete a user by ID' })
+  @ApiParam({ name: 'id', description: 'User ID', type: Number })
+  @ApiResponse({ status: 200, description: 'User deleted successfully' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.userService.remove(id);
+  }
+}

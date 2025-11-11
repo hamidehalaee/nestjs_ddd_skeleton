@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       Int        @unique @default(autoincrement())
+  name     String     @db.VarChar(45)
+  email    String     @unique @db.VarChar(45)
+  password String     @db.VarChar(500)
+  uid      String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessions Sessions[]
+}
+
+model Sessions {
+  id         Int       @unique @default(autoincrement())
+  device     String?   @db.VarChar(45)
+  lastActive DateTime  @default(now()) @db.Timestamp(0)
+  createdAt  DateTime? @default(now()) @db.Timestamp(0)
+  uid        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userUid    String?   @db.Uuid
+  user       User?     @relation(fields: [userUid], references: [uid], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([userUid])
+  @@index([device, lastActive, userUid])
+}
