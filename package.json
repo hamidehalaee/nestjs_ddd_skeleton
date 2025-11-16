@@ -5,8 +5,8 @@
   "keywords": [],
   "private": false,
   "workspaces": [
-    "packages/api/*",
-    "packages/log-ingestor/*"
+    "apps/api/*",
+    "apps/log-ingestor/*"
   ],
   "author": "",
   "license": "ISC",
