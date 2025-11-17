@@ -142,7 +142,7 @@ importers:
         specifier: ^8.20.0
         version: 8.46.0(eslint@9.37.0(jiti@2.6.1))(typescript@5.9.3)
 
-packages:
+apps:
 
   '@angular-devkit/core@19.2.15':
     resolution: {integrity: sha512-pU2RZYX6vhd7uLSdLwPnuBcr0mXJSjp3EgOXKsrlQFQZevc+Qs+2JdXgIElnOT/aDqtRtriDmLlSbtdE8n3ZbA==}

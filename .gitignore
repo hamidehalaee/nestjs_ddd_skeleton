@@ -3,13 +3,13 @@
 /node_modules
 /build
 
-/packages/api/dist
-/packages/api/node_modules
-/packages/api/build
+/apps/api/dist
+/apps/api/node_modules
+/apps/api/build
 
-/packages/log-ingestor/dist
-/packages/log-ingestor/node_modules
-/packages/log-ingestor/build
+/apps/log-ingestor/dist
+/apps/log-ingestor/node_modules
+/apps/log-ingestor/build
 # Logs
 logs
 *.log
