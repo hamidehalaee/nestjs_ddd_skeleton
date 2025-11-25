@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from 'src/app/service/auth.service';
 import { UserService, USER_REPOSITORY } from 'src/app/service/user.service';
 import { TokenAuthGuard } from 'src/infra/auth/auth.guard';
-import { TokenService } from 'src/infra/auth/token.service';
 import { LoggerService } from 'src/infra/log/log.service';
 import { PrismaService } from 'src/infra/persistence/prisma.service';
 import { RedisService } from 'src/infra/persistence/redis.service';
@@ -18,7 +17,6 @@ import { UserController } from 'src/presentation/controllers/user.controller';
     AuthService,
     PrismaService,
     RedisService,
-    TokenService,
     TokenAuthGuard,
     ConfigService,
     LoggerService,

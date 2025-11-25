@@ -2,13 +2,13 @@ import { Inject, Injectable } from '@nestjs/common';
 import { User } from 'src/domain/user/user.entity';
 import { UserRepository } from 'src/domain/user/user-repository.interface';
 import * as argon2 from 'argon2';
-import { TokenService } from 'src/infra/auth/token.service';
 import { RedisService } from 'src/infra/persistence/redis.service';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { Log } from 'src/common/decorators/log.decorator';
 import { LoggerService } from 'src/infra/log/log.service';
+import { randomBytes } from 'crypto';
 
 export const USER_REPOSITORY = Symbol('USER_REPOSITORY');
 
@@ -16,21 +16,21 @@ export const USER_REPOSITORY = Symbol('USER_REPOSITORY');
 export class UserService {
   constructor(
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
-    private readonly tokenService: TokenService,
     private readonly redisService: RedisService,
     public readonly logger: LoggerService,
   ) {}
 
   @Log('Creating user')
-  async create(createUserDto: CreateUserDto, deviceInfo: { userAgent: string; ip: string }): Promise<{ user: User; access_token: string; refresh_token: string, session_id: string }> {
+  async create(createUserDto: CreateUserDto, deviceInfo: { userAgent: string; ip: string }):
+   Promise<{ user: User; access_token: string; refresh_token: string, session_id: string }> {
     const hashedPassword = await argon2.hash(createUserDto.password);
     const user = await this.userRepository.create({
       ...createUserDto,
       password: hashedPassword,
     });
 
-    const accessToken = this.tokenService.generateAccessToken();
-    const refreshToken = this.tokenService.generateRefreshToken();
+    const accessToken = this.generateAccessToken();
+    const refreshToken = this.generateRefreshToken();
 
     await this.redisService.setAccessToken(user.id, `${user.id}:${accessToken}`);
     await this.redisService.setRefreshToken(user.id, `${user.id}:${refreshToken}`);
@@ -48,6 +48,7 @@ export class UserService {
     };
   }
 
+  @Log('Find all users')
   async findAll(): Promise<User[]> {
     const cachedUsers = await this.redisService.getAllUsers();
     if (cachedUsers) {
@@ -59,6 +60,7 @@ export class UserService {
     return users;
   }
 
+  @Log('Find one user')
   async findOne(id: number): Promise<User | null> {
     const cachedUser = await this.redisService.getUser(id);
     if (cachedUser) {
@@ -72,6 +74,7 @@ export class UserService {
     return user;
   }
 
+  @Log('Updating user')
   async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
     if (updateUserDto.password) {
       updateUserDto.password = await argon2.hash(updateUserDto.password);
@@ -82,6 +85,7 @@ export class UserService {
     return user;
   }
 
+  @Log('Removing user')
   async remove(id: number): Promise<void> {
     // Delete all sessions for the user
     await this.redisService.deleteTokens(id);
@@ -91,6 +95,14 @@ export class UserService {
     }
     await this.redisService.invalidateUserCache(id);
     await this.userRepository.remove(id);
+  }
+
+  generateAccessToken(): string {
+    return randomBytes(32).toString('hex'); // 64-character random string
+  }
+
+  generateRefreshToken(): string {
+    return randomBytes(48).toString('hex'); // 96-character random string
   }
 }
 

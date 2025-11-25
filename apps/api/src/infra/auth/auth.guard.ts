@@ -12,17 +12,24 @@ export class TokenAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const token = request.headers.authorization?.replace('Bearer ', '');
+    const authHeader = request.headers.authorization;
 
-    if (!token) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new UnauthorizedException('No token provided');
     }
 
+    const [_, token] = request.headers.authorization?.split(' ') ?? [];
+
     const userId = Number(token.split(':')[0]);
+
+    if (isNaN(userId)) {
+      throw new UnauthorizedException('Invalid token format');
+    }
+
     const storedToken = await this.redisService.getAccessToken(userId);
 
     if (!storedToken || storedToken !== token) {
-      throw new UnauthorizedException('Invalid token');
+      throw new UnauthorizedException('Invalid or expired token');
     }
 
     const user = await this.userRepository.findOne(userId);

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req, Delete, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Req, Delete, Get, Param, UseGuards, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { LoginUserDto } from 'src/app/dto/login-user.dto';
 import { RefreshTokenDto } from 'src/app/dto/refresh-token.dto';
@@ -24,6 +24,7 @@ export class AuthController {
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
   @ApiBody({ type: RefreshTokenDto })
+  @HttpCode(200)
   @ApiResponse({ status: 200, description: 'New access token returned', type: Object })
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   refresh(@Body() refreshTokenDto: RefreshTokenDto) {

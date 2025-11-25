@@ -1,35 +1,42 @@
-import { LoggerService } from "@nestjs/common/services/logger.service";
+import { LoggerService } from '../../infra/log/log.service';
 
-function maskSensitive(key: string, value: any): any {
-  if (typeof key === 'string' && /(password|token|secret|key)/i.test(key)) return '***';
+function maskSensitive(_key: string, value: any): any {
+  const key = String(_key).toLowerCase();
+  if (/password|token|secret|key|creditcard|ssn/.test(key)) {
+    return '***';
+  }
   return value;
 }
 
 export function Log(message?: string) {
-  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+  return function (
+    target: any,
+    propertyKey: string,
+    descriptor: PropertyDescriptor,
+  ) {
     const originalMethod = descriptor.value;
 
     descriptor.value = async function (...args: any[]) {
       const logger: LoggerService = (this as any).logger;
-      if (!logger) return originalMethod.apply(this, args);
+      if (!logger) {
+        return originalMethod.apply(this, args);
+      }
 
       const start = Date.now();
-      const ctx = target.constructor.name;
-      const entryMsg = message ?? `${propertyKey} called`;
+      const context = target.constructor.name;
+      const entryMessage = message ?? `${propertyKey} called`;
 
-      // Extract request context if available (from Express/Fastify)
-      const req = (this as any).req || args.find(a => a?.headers);
+      const req = (this as any).req || args.find((a: any) => a?.headers);
       const requestId = req?.requestId || req?.id || 'N/A';
       const ip = req?.ip || req?.socket?.remoteAddress || 'unknown';
       const userAgent = req?.headers?.['user-agent'] || 'unknown';
 
-      // Mask sensitive data in args
-      const safeArgs = args.map(arg =>
-        JSON.parse(JSON.stringify(arg, maskSensitive))
+      const safeArgs = args.map((arg) =>
+        JSON.parse(JSON.stringify(arg, maskSensitive)),
       );
 
-      logger.log(entryMsg, {
-        context: ctx,
+      logger.infoLog(entryMessage, {
+        context,
         args: safeArgs,
         requestId,
         ip,
@@ -40,23 +47,21 @@ export function Log(message?: string) {
         const result = await originalMethod.apply(this, args);
         const durationMs = Date.now() - start;
 
-        logger.log(`${propertyKey} succeeded`, {
-          context: ctx,
+        logger.infoLog(`${propertyKey} succeeded`, {
+          context,
           result,
           durationMs,
           requestId,
         });
 
         return result;
-      } catch (err) {
+      } catch (err: any) {
         const durationMs = Date.now() - start;
-        const errorMsg = err instanceof Error ? err.message : String(err);
 
-        logger.error(`${propertyKey} failed`, {
-          context: ctx,
+        logger.errorLog(`${propertyKey} failed`, {
+          context,
           args: safeArgs,
-          error: errorMsg,
-          stack: err instanceof Error ? err.stack : undefined,
+          error: err,
           durationMs,
           requestId,
         });

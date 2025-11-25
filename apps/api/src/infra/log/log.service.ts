@@ -1,27 +1,19 @@
+// src/infra/log/log.service.ts
+
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as winston from 'winston';
-import * as Transport from 'winston-transport';
 import * as amqplib from 'amqplib';
+
+import TransportStream = require('winston-transport');
 
 interface RabbitMQTransportOptions {
   url: string;
   exchange: string;
 }
 
-interface LogMeta {
-  context?: string;
-  args?: any;
-  result?: any;
-  durationMs?: number;
-  requestId?: string;
-  ip?: string;
-  userAgent?: string;
-  error?: string;
-  stack?: string;
-}
-
-class RabbitMQTransport extends Transport {
+class RabbitMQTransport extends TransportStream {
+  name = 'rabbitmq';
   private channel?: amqplib.Channel;
 
   constructor(private opts: RabbitMQTransportOptions) {
@@ -29,125 +21,110 @@ class RabbitMQTransport extends Transport {
   }
 
   async log(info: any, callback: () => void) {
+    setImmediate(callback);
+
     try {
       if (!this.channel) {
         const conn = await amqplib.connect(this.opts.url);
         this.channel = await conn.createChannel();
         await this.channel.assertExchange(this.opts.exchange, 'fanout', { durable: false });
       }
-      this.channel.publish(this.opts.exchange, '', Buffer.from(JSON.stringify(info)));
-      callback();
+
+      const buffer = Buffer.from(JSON.stringify(info));
+      this.channel.publish(this.opts.exchange, '', buffer);
     } catch (err) {
       console.error('RabbitMQ log failed:', err);
-      callback();
     }
   }
 }
 
-@Injectable()
-export class LoggerService {
-  private readonly logger: winston.Logger;
+function maskSensitive(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(maskSensitive);
 
-  constructor(private configService: ConfigService) {
-    const rabbitUrl = this.configService.get<string>('RABBITMQ_URL')!;
+  const masked = { ...obj };
+  for (const key in masked) {
+    const lowerKey = key.toLowerCase();
+    if (['password', 'token', 'secret', 'creditcard', 'ssn', 'apikey', 'privatekey'].includes(lowerKey)) {
+      masked[key] = '***';
+    } else if (typeof masked[key] === 'object' && masked[key] !== null) {
+      masked[key] = maskSensitive(masked[key]);
+    }
+  }
+  return masked;
+}
+
+
+function omitSensitive(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(omitSensitive);
+
+  const cleaned = { ...obj };
+  for (const key in cleaned) {
+    if (['password', 'token', 'secret', 'creditcard', 'ssn', 'apikey', 'privatekey'].some(s => key.toLowerCase().includes(s))) {
+      delete cleaned[key];
+    } else if (typeof cleaned[key] === 'object' && cleaned[key] !== null) {
+      cleaned[key] = omitSensitive(cleaned[key]);
+    }
+  }
+  return cleaned;
+}
+
+@Injectable()
+export class LoggerService extends winston.Logger {
+  constructor(configService: ConfigService) {
+    const rabbitUrl = configService.get<string>('RABBITMQ_URL')!;
 
     const rabbitTransport = new RabbitMQTransport({
       url: rabbitUrl,
       exchange: 'app-logs',
     });
 
-    // ──────────────────────────────────────────────────────────────
-    // Console transport: pretty + colors
     const consoleTransport = new winston.transports.Console({
       format: winston.format.combine(
         winston.format.colorize(),
         winston.format.timestamp(),
-        winston.format.printf(this.prettyPrint.bind(this)),
+        winston.format.printf(({ level, message, timestamp, context, ...meta }) => {
+          const contextStr = context ? `[${context}] ` : '';
+          const durationMs = meta.durationMs ? ` ${meta.durationMs}ms` : '';
+          const args = meta.args ? { Args: maskSensitive(meta.args) } : {};
+          const result = meta.result ? { Result: meta.result } : {};
+
+          return `${timestamp} ${level}: ${contextStr}${message}${durationMs} ${JSON.stringify(
+            { ...args, ...result, ...omitSensitive(meta) },
+            null,
+            2
+          ).replace(/"password":\s*"[^"]*"/g, '"password": "***"')
+            .replace(/"token":\s*"[^"]*"/g, '"token": "***"')}`;
+        })
       ),
     });
 
-    // ──────────────────────────────────────────────────────────────
-    // RabbitMQ transport: clean JSON
-    const rabbitMqTransport = rabbitTransport;
-    rabbitMqTransport.format = winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.errors({ stack: true }),
-      winston.format.json(),
-    );
-
-    this.logger = winston.createLogger({
+    super({
       level: 'info',
-      transports: [consoleTransport, rabbitMqTransport],
+      defaultMeta: { service: 'api' },
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.errors({ stack: true }),
+        winston.format.json()
+      ),
+      transports: [consoleTransport, rabbitTransport],
     });
   }
 
-  // ──────────────────────────────────────────────────────────────
-  private prettyPrint(info: any) {
-    const {
-      level,
-      message,
-      timestamp,
-      context,
-      args,
-      result,
-      durationMs,
-      requestId,
-      ip,
-      userAgent,
-      error,
-      stack,
-    } = info;
-
-    const time = timestamp.split('T')[1].replace('Z', '');
-    const parts: string[] = [`${level}: ${time}`];
-
-    if (context) parts.push(`[${context}]`);
-    parts.push(message);
-
-    if (args) {
-      const argStr = JSON.stringify(args, null, 2)
-        .split('\n')
-        .map(l => '  ' + l)
-        .join('\n');
-      parts.push(`\nArgs:\n${argStr}`);
-    }
-
-    if (result !== undefined) {
-      const resStr = JSON.stringify(result, null, 2)
-        .split('\n')
-        .map(l => '  ' + l)
-        .join('\n');
-      parts.push(`\nResult:\n${resStr}`);
-    }
-
-    if (durationMs) parts.push(`(${durationMs}ms)`);
-
-    const reqInfo: string[] = [];
-    if (requestId && requestId !== 'N/A') reqInfo.push(`req:${requestId}`);
-    if (ip && ip !== 'unknown') reqInfo.push(`ip:${ip}`);
-    if (userAgent && userAgent !== 'unknown') reqInfo.push(`ua:${userAgent.substring(0, 30)}...`);
-    if (reqInfo.length) parts.push(`[${reqInfo.join(' ')}]`);
-
-    if (error) parts.push(`\nError: ${error}`);
-    if (stack) parts.push(`\n${stack}`);
-
-    return parts.join(' ');
+  infoLog(message: string, meta?: Record<string, any>): void {
+    this.log('info', message, meta);
   }
 
-  // ──────────────────────────────────────────────────────────────
-  log(message: string, meta?: LogMeta) {
-    this.logger.info(message, meta);
+  errorLog(message: string, meta?: Record<string, any>): void {
+    this.log('error', message, meta);
   }
 
-  error(message: string, meta?: LogMeta) {
-    this.logger.error(message, meta);
+  warnLog(message: string, meta?: Record<string, any>): void {
+    this.log('warn', message, meta);
   }
 
-  warn(message: string, meta?: LogMeta) {
-    this.logger.warn(message, meta);
-  }
-
-  debug(message: string, meta?: LogMeta) {
-    this.logger.debug(message, meta);
+  debugLog(message: string, meta?: Record<string, any>): void {
+    this.log('debug', message, meta);
   }
 }
