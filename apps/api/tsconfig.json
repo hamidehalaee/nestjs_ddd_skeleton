@@ -10,6 +10,7 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,               
     "target": "es2017",
     "sourceMap": true,
     "outDir": "./dist",
@@ -19,6 +20,23 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
-    "noFallthroughCasesInSwitch": false
-  }
+    "noFallthroughCasesInSwitch": false,
+
+    
+    "types": ["node", "jest"],              
+    "typeRoots": ["./node_modules/@types", "./test"]  
+  },
+
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "test/**/*.d.ts",       
+    "test/global.e2e.d.ts"  
+  ],
+
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage"
+  ]
 }

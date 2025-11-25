@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../dist/out-tsc",
+    "types": ["jest", "node"],
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true
+  },
+  "include": [
+    "src/**/*.spec.ts",
+    "src/**/*.e2e-spec.ts",
+    "test/**/*.ts",
+    "test/**/*.d.ts"
+  ]
+}
